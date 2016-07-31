@@ -3088,6 +3088,7 @@ var _alicebob$sudoku$Grid$parse = function (s) {
 	return _alicebob$sudoku$Grid$parseGrid(s);
 };
 var _alicebob$sudoku$Grid$example = _alicebob$sudoku$Grid$parse('\n53..7....\n6..195...\n.98....6.\n8...6...3\n4..8.3..1\n7...2...6\n.6....28.\n...419..5\n....8..79\n');
+var _alicebob$sudoku$Grid$empty = _alicebob$sudoku$Grid$parse('\n.........\n.........\n.........\n.........\n.........\n.........\n.........\n.........\n.........\n');
 var _elm_lang$core$Dict$foldr = F3(
 	function (f, acc, t) {
 		foldr:
@@ -8528,9 +8529,89 @@ var _alicebob$sudoku$Sudoku$borders = F2(
 				right,
 				A2(_elm_lang$core$Basics_ops['++'], top, bottom)));
 	});
-var _alicebob$sudoku$Sudoku$initialState = {game: _alicebob$sudoku$Grid$example, selectedField: _elm_lang$core$Maybe$Nothing};
+var _alicebob$sudoku$Sudoku$initialState = function (puzzle) {
+	return {
+		history: A2(_elm_lang$core$Array$push, puzzle, _elm_lang$core$Array$empty),
+		current: 0,
+		selectedField: _elm_lang$core$Maybe$Nothing
+	};
+};
+var _alicebob$sudoku$Sudoku$redoAvailable = function (state) {
+	return _elm_lang$core$Native_Utils.cmp(
+		state.current,
+		_elm_lang$core$Array$length(state.history) - 1) < 0;
+};
+var _alicebob$sudoku$Sudoku$redo = function (state) {
+	return _elm_lang$core$Native_Utils.update(
+		state,
+		{
+			current: A2(
+				_elm_lang$core$Basics$min,
+				_elm_lang$core$Array$length(state.history) - 1,
+				state.current + 1)
+		});
+};
+var _alicebob$sudoku$Sudoku$undoAvailable = function (state) {
+	return _elm_lang$core$Native_Utils.cmp(state.current, 0) > 0;
+};
+var _alicebob$sudoku$Sudoku$undo = function (state) {
+	return _elm_lang$core$Native_Utils.update(
+		state,
+		{
+			current: A2(_elm_lang$core$Basics$max, 0, state.current - 1)
+		});
+};
+var _alicebob$sudoku$Sudoku$current = function (s) {
+	var _p0 = A2(_elm_lang$core$Array$get, s.current, s.history);
+	if (_p0.ctor === 'Nothing') {
+		return _alicebob$sudoku$Grid$empty;
+	} else {
+		return _p0._0;
+	}
+};
+var _alicebob$sudoku$Sudoku$doMove = F3(
+	function (state, _p1, cell) {
+		var _p2 = _p1;
+		var his = A3(_elm_lang$core$Array$slice, 0, state.current + 1, state.history);
+		var old = _alicebob$sudoku$Sudoku$current(state);
+		var $new = A4(_alicebob$sudoku$Grid$gridSet, _p2._0, _p2._1, old, cell);
+		return _elm_lang$core$Native_Utils.update(
+			state,
+			{
+				history: A2(_elm_lang$core$Array$push, $new, his),
+				current: state.current + 1
+			});
+	});
 var _alicebob$sudoku$Sudoku$update = F2(
 	function (msg, state) {
+		var moveSelect = function (delta) {
+			var b = function () {
+				var _p3 = state.selectedField;
+				if (_p3.ctor === 'Nothing') {
+					return {ctor: '_Tuple2', _0: 0, _1: 0};
+				} else {
+					return delta(_p3._0);
+				}
+			}();
+			return _elm_lang$core$Native_Utils.update(
+				state,
+				{
+					selectedField: _elm_lang$core$Maybe$Just(
+						{
+							ctor: '_Tuple2',
+							_0: A3(
+								_elm_lang$core$Basics$clamp,
+								0,
+								8,
+								_elm_lang$core$Basics$fst(b)),
+							_1: A3(
+								_elm_lang$core$Basics$clamp,
+								0,
+								8,
+								_elm_lang$core$Basics$snd(b))
+						})
+				});
+		};
 		var setSelect = function (xy) {
 			return _elm_lang$core$Native_Utils.update(
 				state,
@@ -8538,107 +8619,87 @@ var _alicebob$sudoku$Sudoku$update = F2(
 					selectedField: _elm_lang$core$Maybe$Just(xy)
 				});
 		};
-		var moveSelect = function (delta) {
-			var b = function () {
-				var _p0 = state.selectedField;
-				if (_p0.ctor === 'Nothing') {
-					return {ctor: '_Tuple2', _0: 0, _1: 0};
-				} else {
-					return delta(_p0._0);
-				}
-			}();
-			var limit = function (n) {
-				return (_elm_lang$core$Native_Utils.cmp(n, 0) < 0) ? 0 : ((_elm_lang$core$Native_Utils.cmp(n, 8) > 0) ? 8 : n);
-			};
-			return _elm_lang$core$Native_Utils.update(
-				state,
-				{
-					selectedField: _elm_lang$core$Maybe$Just(
-						{
-							ctor: '_Tuple2',
-							_0: limit(
-								_elm_lang$core$Basics$fst(b)),
-							_1: limit(
-								_elm_lang$core$Basics$snd(b))
-						})
-				});
-		};
-		var setCell = F3(
-			function (x, y, c) {
-				return _elm_lang$core$Native_Utils.update(
-					state,
-					{
-						game: A4(_alicebob$sudoku$Grid$gridSet, x, y, state.game, c)
-					});
-			});
-		var setSel = function (c) {
-			var _p1 = state.selectedField;
-			if (_p1.ctor === 'Nothing') {
+		var setSelectedCell = function (c) {
+			var _p4 = state.selectedField;
+			if (_p4.ctor === 'Nothing') {
 				return state;
 			} else {
-				var _p5 = _p1._0._1;
-				var _p4 = _p1._0._0;
-				var _p2 = A3(_alicebob$sudoku$Grid$gridGet, _p4, _p5, state.game);
-				if (_p2.ctor === 'Nothing') {
+				var _p8 = _p4._0._1;
+				var _p7 = _p4._0._0;
+				var _p5 = A3(
+					_alicebob$sudoku$Grid$gridGet,
+					_p7,
+					_p8,
+					_alicebob$sudoku$Sudoku$current(state));
+				if (_p5.ctor === 'Nothing') {
 					return state;
 				} else {
-					var _p3 = _p2._0;
-					if (_p3.ctor === 'Clue') {
+					var _p6 = _p5._0;
+					if (_p6.ctor === 'Clue') {
 						return state;
 					} else {
-						return A3(setCell, _p4, _p5, c);
+						return A3(
+							_alicebob$sudoku$Sudoku$doMove,
+							state,
+							{ctor: '_Tuple2', _0: _p7, _1: _p8},
+							c);
 					}
 				}
 			}
 		};
 		var r = function () {
-			var _p6 = msg;
-			if (_p6.ctor === 'Click') {
-				return setSelect(_p6._0);
-			} else {
-				var _p17 = _p6._0;
-				var _p7 = _p17;
-				switch (_p7.valueOf()) {
-					case 'H':
-						return moveSelect(
-							function (_p8) {
-								var _p9 = _p8;
-								return {ctor: '_Tuple2', _0: _p9._0 - 1, _1: _p9._1};
-							});
-					case 'J':
-						return moveSelect(
-							function (_p10) {
-								var _p11 = _p10;
-								return {ctor: '_Tuple2', _0: _p11._0, _1: _p11._1 + 1};
-							});
-					case 'K':
-						return moveSelect(
-							function (_p12) {
-								var _p13 = _p12;
-								return {ctor: '_Tuple2', _0: _p13._0, _1: _p13._1 - 1};
-							});
-					case 'L':
-						return moveSelect(
-							function (_p14) {
-								var _p15 = _p14;
-								return {ctor: '_Tuple2', _0: _p15._0 + 1, _1: _p15._1};
-							});
-					case ' ':
-						return setSel(_alicebob$sudoku$Grid$Unknown);
-					default:
-						if (_elm_lang$core$Char$isDigit(_p17)) {
-							var _p16 = _elm_lang$core$String$toInt(
-								_elm_lang$core$String$fromChar(_p17));
-							if (_p16.ctor === 'Ok') {
-								return setSel(
-									_alicebob$sudoku$Grid$Guess(_p16._0));
+			var _p9 = msg;
+			switch (_p9.ctor) {
+				case 'Click':
+					return setSelect(_p9._0);
+				case 'KeyPress':
+					var _p20 = _p9._0;
+					var _p10 = _p20;
+					switch (_p10.valueOf()) {
+						case 'H':
+							return moveSelect(
+								function (_p11) {
+									var _p12 = _p11;
+									return {ctor: '_Tuple2', _0: _p12._0 - 1, _1: _p12._1};
+								});
+						case 'J':
+							return moveSelect(
+								function (_p13) {
+									var _p14 = _p13;
+									return {ctor: '_Tuple2', _0: _p14._0, _1: _p14._1 + 1};
+								});
+						case 'K':
+							return moveSelect(
+								function (_p15) {
+									var _p16 = _p15;
+									return {ctor: '_Tuple2', _0: _p16._0, _1: _p16._1 - 1};
+								});
+						case 'L':
+							return moveSelect(
+								function (_p17) {
+									var _p18 = _p17;
+									return {ctor: '_Tuple2', _0: _p18._0 + 1, _1: _p18._1};
+								});
+						case ' ':
+							return setSelectedCell(_alicebob$sudoku$Grid$Unknown);
+						default:
+							if (_elm_lang$core$Char$isDigit(_p20)) {
+								var _p19 = _elm_lang$core$String$toInt(
+									_elm_lang$core$String$fromChar(_p20));
+								if (_p19.ctor === 'Ok') {
+									return setSelectedCell(
+										_alicebob$sudoku$Grid$Guess(_p19._0));
+								} else {
+									return setSelectedCell(_alicebob$sudoku$Grid$Unknown);
+								}
 							} else {
-								return setSel(_alicebob$sudoku$Grid$Unknown);
+								return state;
 							}
-						} else {
-							return state;
-						}
-				}
+					}
+				case 'Undo':
+					return _alicebob$sudoku$Sudoku$undo(state);
+				default:
+					return _alicebob$sudoku$Sudoku$redo(state);
 			}
 		}();
 		return {ctor: '_Tuple2', _0: r, _1: _elm_lang$core$Platform_Cmd$none};
@@ -8689,10 +8750,12 @@ var _alicebob$sudoku$Sudoku$cell = F2(
 			_elm_lang$core$Native_List.fromArray(
 				[v]));
 	});
-var _alicebob$sudoku$Sudoku$GameState = F2(
-	function (a, b) {
-		return {game: a, selectedField: b};
+var _alicebob$sudoku$Sudoku$GameState = F3(
+	function (a, b, c) {
+		return {history: a, current: b, selectedField: c};
 	});
+var _alicebob$sudoku$Sudoku$Redo = {ctor: 'Redo'};
+var _alicebob$sudoku$Sudoku$Undo = {ctor: 'Undo'};
 var _alicebob$sudoku$Sudoku$KeyPress = function (a) {
 	return {ctor: 'KeyPress', _0: a};
 };
@@ -8722,8 +8785,8 @@ var _alicebob$sudoku$Sudoku$drawGrid = function (state) {
 				_alicebob$sudoku$Sudoku$cell,
 				A2(_elm_lang$core$Basics_ops['++'], stl, borderStl),
 				function () {
-					var _p18 = c;
-					switch (_p18.ctor) {
+					var _p21 = c;
+					switch (_p21.ctor) {
 						case 'Clue':
 							return A2(
 								_elm_lang$html$Html$b,
@@ -8732,7 +8795,7 @@ var _alicebob$sudoku$Sudoku$drawGrid = function (state) {
 								_elm_lang$core$Native_List.fromArray(
 									[
 										_elm_lang$html$Html$text(
-										_elm_lang$core$Basics$toString(_p18._0))
+										_elm_lang$core$Basics$toString(_p21._0))
 									]));
 						case 'Guess':
 							return A2(
@@ -8746,7 +8809,7 @@ var _alicebob$sudoku$Sudoku$drawGrid = function (state) {
 								_elm_lang$core$Native_List.fromArray(
 									[
 										_elm_lang$html$Html$text(
-										_elm_lang$core$Basics$toString(_p18._0))
+										_elm_lang$core$Basics$toString(_p21._0))
 									]));
 						default:
 							return A2(
@@ -8762,7 +8825,10 @@ var _alicebob$sudoku$Sudoku$drawGrid = function (state) {
 					}
 				}());
 		});
-	var cells = A2(_alicebob$sudoku$Grid$indexedMapGrid, rendCell, state.game);
+	var cells = A2(
+		_alicebob$sudoku$Grid$indexedMapGrid,
+		rendCell,
+		_alicebob$sudoku$Sudoku$current(state));
 	return A2(
 		_alicebob$sudoku$Sudoku$divGrid,
 		_elm_lang$core$Native_List.fromArray(
@@ -8770,12 +8836,49 @@ var _alicebob$sudoku$Sudoku$drawGrid = function (state) {
 		cells);
 };
 var _alicebob$sudoku$Sudoku$view = function (state) {
-	return _alicebob$sudoku$Sudoku$drawGrid(state);
+	return A2(
+		_elm_lang$html$Html$div,
+		_elm_lang$core$Native_List.fromArray(
+			[]),
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_alicebob$sudoku$Sudoku$drawGrid(state),
+				A2(
+				_elm_lang$html$Html$button,
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_elm_lang$html$Html_Events$onClick(_alicebob$sudoku$Sudoku$Undo),
+						_elm_lang$html$Html_Attributes$disabled(
+						_elm_lang$core$Basics$not(
+							_alicebob$sudoku$Sudoku$undoAvailable(state)))
+					]),
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_elm_lang$html$Html$text('< undo')
+					])),
+				A2(
+				_elm_lang$html$Html$button,
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_elm_lang$html$Html_Events$onClick(_alicebob$sudoku$Sudoku$Redo),
+						_elm_lang$html$Html_Attributes$disabled(
+						_elm_lang$core$Basics$not(
+							_alicebob$sudoku$Sudoku$redoAvailable(state)))
+					]),
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_elm_lang$html$Html$text('redo >')
+					]))
+			]));
 };
 var _alicebob$sudoku$Sudoku$main = {
 	main: _elm_lang$html$Html_App$program(
 		{
-			init: {ctor: '_Tuple2', _0: _alicebob$sudoku$Sudoku$initialState, _1: _elm_lang$core$Platform_Cmd$none},
+			init: {
+				ctor: '_Tuple2',
+				_0: _alicebob$sudoku$Sudoku$initialState(_alicebob$sudoku$Grid$example),
+				_1: _elm_lang$core$Platform_Cmd$none
+			},
 			view: _alicebob$sudoku$Sudoku$view,
 			update: _alicebob$sudoku$Sudoku$update,
 			subscriptions: _alicebob$sudoku$Sudoku$subscriptions

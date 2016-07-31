@@ -4,3 +4,6 @@ all:
 
 deps:
 	elm-package install
+
+example.html: *.elm
+	elm-make main.elm grid.elm --output example.html
