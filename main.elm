@@ -4,6 +4,7 @@ import List
 import Keyboard
 import Char
 import String
+import Array
 import Html exposing (Html, div, text)
 import Html.App as Html
 import Html.Attributes as Attr
@@ -18,18 +19,21 @@ squareSize = 25
 
 main =
   Html.program
-    { init = (initialState, Cmd.none)
+    { init = (initialState Grid.example, Cmd.none)
     , view = view
     , update = update
     , subscriptions = subscriptions
     }
 
+-- GameState has the board with full history. 'selectedField' is highlighted;
+-- changing it doesn't go into the history.
 type alias GameState =
-    {  game : Grid.Sudoku
+    { history: Array.Array Grid.Sudoku
+    , current: Int
     , selectedField : Maybe (Int, Int)
     }
 
-type Msg = Click (Int, Int) | KeyPress Char
+type Msg = Click (Int, Int) | KeyPress Char | Undo | Redo
 
 subscriptions : GameState -> Sub Msg
 subscriptions model =
@@ -39,30 +43,26 @@ subscriptions model =
 update : Msg -> GameState -> (GameState, Cmd Msg)
 update msg state =
     let
-        setCell x y c = {state | game = Grid.gridSet x y state.game c}
-        setSel c = 
+        setSelectedCell c = 
             case state.selectedField of
                 Nothing -> state
                 Just (x, y) -> 
-                    case Grid.gridGet x y state.game of
+                    case Grid.gridGet x y (current state) of
                         Nothing -> state
                         Just old ->
                             case old of
                                 Grid.Clue _ -> state
-                                _ -> setCell x y c
+                                _ -> doMove state (x, y) c
+        setSelect xy =
+                {state | selectedField = Just xy}
         moveSelect delta =
             let
-                limit n = if n < 0 then 0
-                    else if n > 8 then 8
-                    else n
                 b = case state.selectedField of
                     Nothing -> (0, 0)
                     Just xy ->
                         delta xy
             in
-                {state | selectedField = Just (limit <| fst b, limit <| snd b)}
-        setSelect xy =
-                {state | selectedField = Just xy}
+                {state | selectedField = Just (clamp 0 8 <| fst b, clamp 0 8 <| snd b)}
         r = case msg of
             Click xy ->
                 setSelect xy
@@ -72,23 +72,79 @@ update msg state =
                     'J' -> moveSelect (\(x, y) -> (x,y+1))
                     'K' -> moveSelect (\(x, y) -> (x,y-1))
                     'L' -> moveSelect (\(x, y) -> (x+1,y))
-                    ' ' -> setSel Grid.Unknown
+                    ' ' -> setSelectedCell Grid.Unknown
                     _ -> if Char.isDigit k then
                             case String.toInt <| String.fromChar k of
-                                Ok i -> setSel <| Grid.Guess i
-                                Err _ -> setSel Grid.Unknown
+                                Ok i -> setSelectedCell <| Grid.Guess i
+                                Err _ -> setSelectedCell Grid.Unknown
                         else
                             state
+            Undo ->
+                undo state
+            Redo ->
+                redo state
     in
         (r, Cmd.none)
 
+-- current gives the board we're looking at. It's the last from 'history',
+-- unless we're in 'undo' state.
+current : GameState -> Grid.Sudoku
+current s =
+    case Array.get s.current s.history of
+        Nothing -> Grid.empty -- impossible
+        Just g -> g
+
+doMove : GameState -> (Int, Int) -> Grid.Cell -> GameState
+doMove state (x, y) cell =
+    let
+        old = current state
+        new = Grid.gridSet x y old cell
+        -- drop the 'redo' future, if any
+        his = Array.slice 0 (state.current+1) state.history
+    in
+        {   state |
+            history = Array.push new his,
+            current = state.current + 1
+        }
+
+undo : GameState -> GameState
+undo state =
+    { state |
+        current = max 0 (state.current - 1)
+    }
+
+undoAvailable : GameState -> Bool
+undoAvailable state =
+    state.current > 0
+
+redo : GameState -> GameState
+redo state =
+    { state |
+        current = min ((Array.length state.history) - 1) (state.current + 1)
+    }
+
+redoAvailable : GameState -> Bool
+redoAvailable state =
+    state.current < (Array.length state.history - 1)
+
 view : GameState -> Html Msg
 view state =
-    drawGrid state
+    div []
+        [ drawGrid state
+        , Html.button [
+            Events.onClick Undo,
+            Attr.disabled <| not <| undoAvailable state
+        ] [ text "< undo" ]
+        , Html.button [
+            Events.onClick Redo,
+            Attr.disabled <| not <| redoAvailable state
+        ] [ text "redo >" ]
+    ]
 
-initialState : GameState
-initialState =
-    { game = Grid.example
+initialState : Grid.Sudoku -> GameState
+initialState puzzle =
+    { history = Array.push puzzle Array.empty
+    , current = 0
     , selectedField = Nothing
     }
 
@@ -154,7 +210,7 @@ drawGrid state =
                     Grid.Clue n -> Html.b [] <| [ text <| toString n ]
                     Grid.Guess n -> div [ Events.onClick (Click (x, y))] [ text <| toString n ]
                     Grid.Unknown -> div [ Events.onClick (Click (x, y))] [ nbsp ]
-        cells = Grid.indexedMapGrid rendCell state.game
+        cells = Grid.indexedMapGrid rendCell (current state)
     in
         divGrid [] cells
 
