@@ -6,7 +6,7 @@ import Char
 import String
 import Array
 import Html exposing (Html, div, text)
-import Html.App as Html
+import Html as Html
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Encode
@@ -61,6 +61,8 @@ update msg state =
                     Nothing -> (0, 0)
                     Just xy ->
                         delta xy
+                fst (x, y) = x
+                snd (x, y) = y
             in
                 {state | selectedField = Just (clamp 0 8 <| fst b, clamp 0 8 <| snd b)}
         r = case msg of
@@ -201,7 +203,7 @@ drawGrid state =
         rendCell x y c =
             let stl = 
                 if Just (x, y) == state.selectedField then
-                    [ ("background-color", "green" ) ]
+                    [ ("background-color", "lightgreen" ) ]
                 else
                     []
                 borderStl = borders x y

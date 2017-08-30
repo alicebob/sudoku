@@ -10,7 +10,7 @@ type Cell = Unknown
 type alias Sudoku = Grid Cell
 
 example : Sudoku
-example = parse "
+example = parse """
 53..7....
 6..195...
 .98....6.
@@ -20,10 +20,10 @@ example = parse "
 .6....28.
 ...419..5
 ....8..79
-"
+"""
 
 empty : Sudoku
-empty = parse "
+empty = parse """
 .........
 .........
 .........
@@ -33,7 +33,7 @@ empty = parse "
 .........
 .........
 .........
-"
+"""
 
 parse : String -> Sudoku
 parse s =
